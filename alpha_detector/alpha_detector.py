@@ -43,4 +43,4 @@ except:
 
 cv2.imwrite(''.join(img_name.split('.')[:-1])+'_count-'+str(len(circles[0]))+'.jpg', cimg)
 
-#test
+#gatorz
