@@ -1,10 +1,25 @@
 # Client
 import socket, select, string, sys
 import threading
+
+
+def flush_input():
+    """ Flushes stdin, platform intependant.
+    """
+    try:
+        import sys, termios
+        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+    except ImportError:
+        import msvcrt
+        while msvcrt.kbhit():
+            msvcrt.getch()
  
-def prompt() :
+def prompt(temp_message = None):
+
     sys.stdout.write('<You> ')
+
     sys.stdout.flush()
+
 
 def read_stdin(s):
     global exit_program
@@ -33,10 +48,16 @@ def read_socket(s):
                 if not data :
                     print '\nDisconnected from chat server'
                     exit_program = True
-                    #sys.exit()
+                    sys.exit()
                 else :
                     #print data
+                    if '$server_sys' in data:
+                        data = "\nSystem: "+" ".join(data.split()[1:])+"\n"
+
                     sys.stdout.write(data)
+
+                    sys.stdout.flush()
+                    
                     prompt()
  
 exit_program = False
@@ -69,7 +90,7 @@ if __name__ == "__main__":
     print 'Connected to remote host. Start sending messages'
 
     # Send username
-    s.send("\r$user_init#"+str(username))
+    s.send("\r\\$user_init "+str(username))
 
     prompt()
      

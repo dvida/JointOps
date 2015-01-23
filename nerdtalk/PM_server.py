@@ -16,23 +16,35 @@ def get_username(sock):
 
     return str(username)
 
+def generate_username(user_dict, default_username = 'user'):
+    """ Generate a generic username when it is not supplied by chat client.
+    """
+
+    count = 1
+    while 1:
+        username = default_username+"_"+str(count)
+        if not username in user_dict.itervalues():
+            return username
+        else:
+            count += 1
+
  
 def broadcast_data (sock, message):
     """ Broadcast chat messages to all connected clients.
     """
     
-    msg_spl = message.split('#')
+    msg_spl = message.split('\\')
 
     # SERVER COMMANDS
-    # help# print help
-    # exit# - disconnect
-    # users# - print connected users
-    # user_num# message - send that usear a private message
+    # \help -print help
+    # \exit - disconnect
+    # \users - print connected users
+    # \user_num message - send that usear a private message
     
     # Handle server commands
     if len(msg_spl) > 1:
 
-        soc_no = msg_spl[0].split('>')[-1].strip()
+        soc_no = msg_spl[-1].strip()
 
         # Disconnect if -1#
         if soc_no == 'exit':
@@ -40,31 +52,53 @@ def broadcast_data (sock, message):
             return 0
 
         if soc_no == 'help':
-            sock.send("\r\nusers# - retrieve current user list\n")
-            sock.send("\ruser_no# message - send a private message\n")
-            sock.send("\rexit# - disconnect\n")
+            sock.send("\r\n\users - retrieve current user list\n")
+            sock.send("\r\user_no message - send a private message\n")
+            sock.send("\r\exit - disconnect\n")
+            return 0
 
-        # Add username to dictionatry
-        if soc_no == "$user_init":
-            user_dict[sock.getpeername()] = sock.getpeername() if (len(msg_spl)<2  or msg_spl[1]  == '000') else " ".join(msg_spl[1:])
-            broadcast_data(sock, get_username(sockfd)+" entered room\n")
+        # Add username to dictionary
+        if "$user_init" in soc_no:
+            soc_no = soc_no.split()
+            username = " ".join(soc_no[1:])
+
+            # Check if username already exists
+            if not username in user_dict.itervalues():
+                user_dict[sock.getpeername()] = generate_username(user_dict) if username  == '000' else username
+            else:
+                # Generate new random username
+                username = generate_username(user_dict)
+                sock.send("\rYour requested username already exist on the server! You are logged in as: "+username+"\n")
+                user_dict[sock.getpeername()] = username
+
+            print get_username(sockfd)+" entered room\n"
+            broadcast_data(sock, "$server_sys "+get_username(sockfd)+" entered room\n")
+
             return 0
 
         # Return list of connected users
         if soc_no == 'users':
             sock.send("\r\nTo send a private message, type user_number# message\n")
-            sock.send("\re.g. 2# How you doin'?\n")
+            sock.send("\re.g. \\2 How you doin'?\n")
             sock.send("\rConnected users:\n\n")
             for i, socket in enumerate(CONNECTION_LIST):
                 if socket != server_socket:
                     username = get_username(socket)
                     # Print out all connected users to the user that requested the list
-                    sock.send("\r"+str(i)+"# "+str(username)+'\n')
+                    sock.send("\r\\"+str(i)+" "+str(username)+'\n')
 
             return 0
 
+        # Split soc_no to private message, if any
         try:
-            soc_no = int(soc_no)
+            soc_no = soc_no.split()
+
+            if len(soc_no) > 1:
+                PM_message = " ".join(soc_no[1:])+"\n"
+            else:
+                PM_message = ""
+
+            soc_no = int(soc_no[0])
         except:
             return 0
 
@@ -73,7 +107,7 @@ def broadcast_data (sock, message):
         if soc_no < len(CONNECTION_LIST):
             socket = CONNECTION_LIST[soc_no]
             username = get_username(sock)
-            message = "\r" + '<' + str(username) + '>PM' + " ".join(msg_spl[1:])
+            message = "\r" + 'PM<' + str(username) + '> ' + PM_message
         else:
             sock.send("\rNo user with that number!\n")
             return 0
@@ -104,8 +138,9 @@ def disconnect_user(sock):
     """
     addr = sock.getpeername()
 
-    disconnect_message = "Client "+get_username(sock)+" is offline\n"
+    disconnect_message = "$server_sys Client "+get_username(sock)+" is offline\n"
     broadcast_data(sock, disconnect_message)
+    disconnect_message = " ".join(disconnect_message.split()[1:])+"\n"
     print disconnect_message
 
     # Remove user from list, if any
@@ -152,9 +187,6 @@ if __name__ == "__main__":
                 # Handle the case in which there is a new connection recieved through server_socket
                 sockfd, addr = server_socket.accept()
                 CONNECTION_LIST.append(sockfd)
-                print "Client "+get_username(sockfd)+" connected"
-                 
-                #broadcast_data(sockfd, get_username(sockfd)+" entered room\n")
              
             # Some incoming message from a client
             else:
