@@ -1,17 +1,14 @@
 import curses
 from curses.textpad import Textbox, rectangle
+import sys
 
 class Screen():
     def __init__(self, stdscr, host_name):
-        self.timer = 0
         self.host_name = "NerdTalk - connected to: "+host_name
         self.stdscr = stdscr
 
-        # set screen attributes
+        # Set screen attributes
         self.stdscr.nodelay(1) # this is used to make input calls non-blocking
-        #curses.cbreak()
-        #self.stdscr.keypad(1)
-        #curses.curs_set(0)     # no annoying mouse cursor
 
         curses.noecho()
         curses.curs_set(1) # 1 - show cursor, 0 - hide cursor
@@ -20,49 +17,89 @@ class Screen():
         self.rows, self.cols = self.stdscr.getmaxyx()
         self.message_lines = []
 
+        # Create custom colors
         curses.start_color()
-        #curses.use_default_colors()
-        # Create new pair with No. 1, with colors 8 and 0
-        curses.init_pair(1, 6, 0)
+        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
 
         # Init entry box
 
         bottom_line = self.rows - 1
 
-        text_heigth = 1
+        self.text_height = 1
         self.text_width = self.cols-3
-        text_top = bottom_line - text_heigth - 3
-        text_left = 1
+        self.text_top = bottom_line - self.text_height - 3
+        self.text_left = 1
 
-        self.editwin = curses.newwin(text_heigth,self.text_width, text_top,text_left)
+        self.editwin = curses.newwin(self.text_height,self.text_width, self.text_top, self.text_left)
 
-        rectangle_top = text_top - 1
-        rectangle_left = text_left - 1
-        rectangle_bottom = rectangle_top + text_heigth + 2
-        rectangle_right = rectangle_left + self.text_width + 2
-
-        # Determine maximum lines visible on the message pad before shifting
-        self.mgs_lines_start = 1
-        self.msg_lines_end = rectangle_top - 1
-        self.message_row_size = self.msg_lines_end - self.mgs_lines_start
-
-        rectangle(self.stdscr, rectangle_top,rectangle_left, rectangle_bottom, rectangle_right)
-
+        # Init textbox entry
         self.box = Textbox(self.editwin)
 
         # Write host on the top of the screen
-        host_center = (self.cols-1)/2 - len(self.host_name)/2 - 1
-        self.stdscr.addstr(0, host_center, self.host_name, curses.color_pair(1))
+        self.updateHeader(self.host_name)
 
-        self.stdscr.refresh()
+        # Draw rectangle
+        self.drawEntryRectangle()
 
         # Init message pad
+        ## Determine maximum lines visible on the message pad before shifting
+        self.mgs_lines_start = 1
+        self.msg_lines_end = self.rectangle_top - 1
+        self.message_row_size = self.msg_lines_end - self.mgs_lines_start
+
         self.message_pad = curses.newpad(self.msg_lines_end - self.mgs_lines_start, self.text_width)
-        #self.message_pad.refresh(0, 0, 5, 5, 10, 60)
+        
         self.message_pad.refresh(0, 0, self.mgs_lines_start, 0, self.message_row_size, self.text_width)
 
         # Start entry box
         self.entryBox()
+
+    def drawEntryRectangle(self):
+        """ Draws entry rectangle on the screen.
+        """
+        self.rectangle_top = self.text_top - 1
+        rectangle_left = self.text_left - 1
+        rectangle_bottom = self.rectangle_top + self.text_height + 2
+        rectangle_right = rectangle_left + self.text_width + 2
+
+        rectangle(self.stdscr, self.rectangle_top, rectangle_left, rectangle_bottom, rectangle_right)
+
+        self.stdscr.refresh()
+
+
+    def updateHeader(self, header):
+        """ Updates the header text.
+        """
+        host_center = (self.cols-1)/2 - len(header)/2 - 1
+        self.stdscr.addstr(0, host_center, header, curses.color_pair(1))
+
+        self.drawEntryRectangle()
+
+    def updateStatusBar(self):
+        """ Updates status bar line.
+        """
+
+        users_no = str(0)
+        self.stdscr.addstr(self.rows-1, 0, ('Connected users: %4s' % str(users_no)), curses.color_pair(1))
+
+        self.drawEntryRectangle()
+
+
+    def handleCommands(self, command):
+        """ Handles commands starting with backslash.
+        """
+        if command == 'help':
+            self.addLine('Commands:\n \\help - show available commands')
+
+        elif command == 'exit':
+            sys.exit(0)
+
+        else:
+            self.addLine('ERROR! Invalid command!')
+
+
+        self.showLines()
+
 
     def entryBox(self):
         """ Handles entry box and input.
@@ -79,83 +116,52 @@ class Screen():
             if message == '':
                 continue
 
-            # Clear preivous input
+            # Truncate message if too long
+            if len(message) > self.text_width:
+                message = message[0:self.text_width]
+
+
+            # Clear previous input
             self.editwin.erase()
 
-            # Send message to output
-            self.addLine(message)
+            # Detect if a commands is given
+            if message[0] == '\\':
+                self.handleCommands(message[1:].strip())
+            else:
 
-            self.showLines()
+                # Send message to output
+                self.addLine(message)
 
-            #self.stdscr.addstr(0, 0, message, curses.color_pair(1))
-            #self.stdscr.refresh()
+                self.showLines()
+
 
     def addLine(self, message):
         """ Adds a new line to the list of messages on the screen. 
         """
-        self.message_lines.append(message)
-        if len(self.message_lines) > self.message_row_size:
-            self.message_lines.pop(0)
+
+        if '\n' in message:
+            message = message.split('\n')
+        else:
+            message = [message]
+
+        for line in message:
+            self.message_lines.append(line)
+            if len(self.message_lines) > self.message_row_size:
+                self.message_lines.pop(0)
         
 
     def showLines(self):
         """ Shows lines from the list to the screen.
         """
-        #self.stdscr.erase()
+
         self.message_pad.erase()
         for row, line in enumerate(self.message_lines):
             self.message_pad.addstr(row, 0, line, curses.color_pair(1))
 
-        #self.stdscr.refresh()
         self.message_pad.refresh(0, 0, self.mgs_lines_start, 0, self.message_row_size, self.text_width)
 
 
-# def main(stdscr):
-#     #stdscr.addstr(0, 0, "Enter IM message: (hit Ctrl-G to send)")
-
-#       # Init entry box
-
-#     bottom_line = curses.LINES - 1
-
-#     text_heigth = 1
-#     text_width = curses.COLS-3
-#     text_top = bottom_line - text_heigth - 5
-#     text_left = 1
-
-#     editwin = curses.newwin(text_heigth,text_width, text_top,text_left)
-
-#     rectangle_top = text_top - 1
-#     rectangle_left = text_left - 1
-#     rectangle_bottom = rectangle_top + text_heigth + 2
-#     rectangle_right = rectangle_left + text_width + 2
-
-#     rectangle(stdscr, rectangle_top,rectangle_left, rectangle_bottom, rectangle_right)
-
-#     box = Textbox(editwin)
-
-#     stdscr.refresh()
-
-#     while 1:
-
-#       # Let the user edit until Ctrl-G is struck.
-#       box.edit()
-
-#       # Get resulting contents
-#       message = box.gather()
-
-#       # Clear preivous input
-#       editwin.erase()
-
-#       # Send message to output
-#       stdscr.addstr(0, 0, message)
-
-#       stdscr.refresh()
-
 
 screen = curses.initscr()
-#curses.noecho()
-#curses.curs_set(1)
-#screen.keypad(1)
 
 Screen(screen, 'LOCALHOST')
-#main(screen)
