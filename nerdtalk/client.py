@@ -3,6 +3,10 @@ import socket, select, string, sys
 import threading
 
 
+import curses
+
+
+
 def flush_input():
     """ Flushes stdin, platform intependant.
     """

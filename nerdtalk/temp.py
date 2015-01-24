@@ -1,22 +1,51 @@
-import sys
-import threading
-import time
-import Queue
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-def add_input(input_queue):
-    while True:
-        input_queue.put(sys.stdin.read(1))
+import curses
+import curses.textpad
 
-def foobar():
-    input_queue = Queue.Queue()
+screen = curses.initscr()
+curses.noecho()
+curses.curs_set(0)
+screen.keypad(1)
 
-    input_thread = threading.Thread(target=add_input, args=(input_queue,))
-    input_thread.daemon = True
-    input_thread.start()
 
-    while True:
+bottom_pos = curses.LINES - 1 
+left_pos = 0
+screen.addstr(bottom_pos, left_pos, "Positioned String")
+#screen.addstr(bottom_pos, left_pos, "Positioned String2")
+#screen.addstr("Positioned String")
 
-        if not input_queue.empty():
-            print "\ninput:", input_queue.get()
 
-foobar()
+
+
+pad = curses.newpad(100, 100)
+# These loops fill the pad with letters; addch() is
+# explained in the next section
+for y in range(0, 99):
+    for x in range(0, 99):
+        pad.addch(y,x, ord('a') + (x*x+y*y) % 26)
+
+pad.refresh( 0,0, 5,5, 20,75)
+
+
+
+
+while True:
+   event = screen.getch()
+   if event == ord("q"): break
+   
+curses.endwin()
+
+#!/usr/bin/env python
+ 
+
+ 
+
+ 
+#hw = "Hello world!"
+#while 1:
+# c = stdscr.getch()
+# if c == ord('p'):
+# elif c == ord('q'): break # Exit the while()
+# elif c == curses.KEY_HOME: x = y = 0
