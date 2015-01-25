@@ -32,6 +32,8 @@ def generate_username(user_dict, default_username = 'user'):
 def broadcast_data (sock, message):
     """ Broadcast chat messages to all connected clients.
     """
+
+    message = message.rstrip('\n')+'\n'
     
     msg_spl = message.split('\\')
 
@@ -64,7 +66,7 @@ def broadcast_data (sock, message):
 
             # Check if username already exists
             if not username in user_dict.itervalues():
-                user_dict[sock.getpeername()] = generate_username(user_dict) if username  == '000' else username
+                user_dict[sock.getpeername()] = generate_username(user_dict) if username  == '$no_username' else username
             else:
                 # Generate new random username
                 username = generate_username(user_dict)
@@ -94,7 +96,7 @@ def broadcast_data (sock, message):
             soc_no = soc_no.split()
 
             if len(soc_no) > 1:
-                PM_message = " ".join(soc_no[1:])+"\n"
+                PM_message = " ".join(soc_no[1:])
             else:
                 PM_message = ""
 
@@ -181,9 +183,9 @@ if __name__ == "__main__":
         # Get the list sockets which are ready to be read through select
         read_sockets,write_sockets,error_sockets = select.select(CONNECTION_LIST,[],[])
  
-        for sock in read_sockets:
+        for temp_socket in read_sockets:
             # New connection
-            if sock == server_socket:
+            if temp_socket == server_socket:
                 # Handle the case in which there is a new connection recieved through server_socket
                 sockfd, addr = server_socket.accept()
                 CONNECTION_LIST.append(sockfd)
@@ -194,16 +196,16 @@ if __name__ == "__main__":
                 try:
                     # In Windows, sometimes when a TCP program closes abruptly,
                     # a "Connection reset by peer" exception will be thrown
-                    data = sock.recv(RECV_BUFFER)
+                    data = temp_socket.recv(RECV_BUFFER)
 
                     # Get username, if provided
-                    username = get_username(sock)
+                    username = get_username(temp_socket)
 
                     if data:
-                        broadcast_data(sock, "\r" + '<' + str(username) + '> ' + data)               
+                        broadcast_data(temp_socket, "\r" + '<' + str(username) + '> ' + data)               
              
                 except:
-                    disconnect_user(sock)
+                    disconnect_user(temp_socket)
                     continue
      
     server_socket.close()

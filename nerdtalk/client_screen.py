@@ -1,11 +1,20 @@
+""" Console user interface for the Client application.
+"""
+
 import curses
 from curses.textpad import Textbox, rectangle
 import sys
+import client_backend
 
 class Screen():
-    def __init__(self, stdscr, host_name):
-        self.host_name = "NerdTalk - connected to: "+host_name
+    def __init__(self, stdscr):
         self.stdscr = stdscr
+
+        self.personal_prefix = '<You> '
+
+
+        self.client_net = None
+        self.connected_flag = False
 
         # Set screen attributes
         self.stdscr.nodelay(1) # this is used to make input calls non-blocking
@@ -36,7 +45,7 @@ class Screen():
         self.box = Textbox(self.editwin)
 
         # Write host on the top of the screen
-        self.updateHeader(self.host_name)
+        self.updateHeader("NerdTalk")
 
         # Draw rectangle
         self.drawEntryRectangle()
@@ -50,6 +59,9 @@ class Screen():
         self.message_pad = curses.newpad(self.msg_lines_end - self.mgs_lines_start, self.text_width)
         
         self.message_pad.refresh(0, 0, self.mgs_lines_start, 0, self.message_row_size, self.text_width)
+
+        # Print welcome message
+        self.printWelcome()
 
         # Start entry box
         self.entryBox()
@@ -84,21 +96,86 @@ class Screen():
 
         self.drawEntryRectangle()
 
+    def connectServer(self, cmd_args):
+        """ Connects to a server given the host, port and username (optional).
+        """
+
+        # Check if alredy connected
+        if self.connected_flag:
+            self.addLine("You are already connected!\n")
+            return 0
+
+        if len(cmd_args) < 2:
+            self.addLine("To connect to a server:\n\\connect IP port username\n")
+            return 0
+
+        elif len(cmd_args) == 2:
+            username = None
+        else:
+            username = cmd_args[2]
+
+        host, port = cmd_args[0:2]
+
+        # Start client backend (handles server connections)
+        self.client_net = client_backend.ClientBackend(self)
+
+        # Connect to server
+        if self.client_net.connect(host, int(port)):
+            self.connected_flag = True
+            self.client_net.startListen()
+
+            self.addLine("Connection success!\n")
+            self.updateHeader("NerdTalk - connected to: "+host)
+
+        else:
+            # Connection failed
+            self.addLine("Error: Could not connect to server!\n")
+
+    def disconnectServer(self):
+        """ Disconnect from the current server.
+        """
+
+        if not self.connected_flag:
+            self.addLine("You are not connected no any server!\n")
+            return 0
+
+        self.client_net.disconnect_flag = True
+        self.connected_flag = False
+        self.addLine("Disconnected!")
+        self.updateHeader("NerdTalk")
+
+        del self.client_net
+
+
 
     def handleCommands(self, command):
         """ Handles commands starting with backslash.
         """
-        if command == 'help':
-            self.addLine('Commands:\n \\help - show available commands')
 
-        elif command == 'exit':
-            sys.exit(0)
+        command = command.split()
+
+        if len(command) > 1:
+            cmd_args = command[1:]
+        else:
+            cmd_args = []
+
+        command = command[0]
+
+        if command == 'exit':
+            self.exitScreen()
+
+        elif command == 'connect':
+            self.connectServer(cmd_args)
+
+        elif command == 'disconnect':
+            self.disconnectServer()
 
         else:
-            self.addLine('ERROR! Invalid command!')
-
-
-        self.showLines()
+            # Forward command to server
+            if self.connected_flag:
+                self.client_net.sendMessage("\\"+command+" "+" ".join(cmd_args))
+            else:
+                self.addLine("Command not recognized by the client. Try connecting to a server first.")
 
 
     def entryBox(self):
@@ -128,11 +205,12 @@ class Screen():
             if message[0] == '\\':
                 self.handleCommands(message[1:].strip())
             else:
-
+                if self.connected_flag:
+                    self.client_net.sendMessage(message)
+                else:
+                    self.addLine("You are not connected to any server!\n")
                 # Send message to output
-                self.addLine(message)
-
-                self.showLines()
+                self.addLine(self.personal_prefix+message)
 
 
     def addLine(self, message):
@@ -148,6 +226,8 @@ class Screen():
             self.message_lines.append(line)
             if len(self.message_lines) > self.message_row_size:
                 self.message_lines.pop(0)
+
+        self.showLines()
         
 
     def showLines(self):
@@ -160,8 +240,27 @@ class Screen():
 
         self.message_pad.refresh(0, 0, self.mgs_lines_start, 0, self.message_row_size, self.text_width)
 
+    def printWelcome(self):
+        # Print a welcome message on the screen
+        self.addLine('Welcome to the NerdTalk chat client!\nTo connect to a remote server write: \\connect IP port username\nTo exit write: \\exit\n')
+
+    def exitScreen(self):
+        """ Exit application.
+        """
+        # Set backend to disconnect
+        self.disconnectServer()
+
+        # Return terminal to normal state
+        curses.nocbreak()
+        self.stdscr.keypad(0)
+        curses.echo()
+        curses.endwin()
+
+        sys.exit(0)
 
 
-screen = curses.initscr()
+if __name__ == "__main__":
 
-Screen(screen, 'LOCALHOST')
+    screen = curses.initscr()
+
+    Screen(screen)
