@@ -120,7 +120,7 @@ class Screen():
         self.client_net = client_backend.ClientBackend(self)
 
         # Connect to server
-        if self.client_net.connect(host, int(port)):
+        if self.client_net.connect(host, int(port), username):
             self.connected_flag = True
             self.client_net.startListen()
 
