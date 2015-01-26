@@ -10,19 +10,26 @@ class ClientBackend():
     def __init__(self, screen_app):
         self.screen_app = screen_app
         self.disconnect_flag = False
+        self.host = None
+        self.port = None
 
     def connect(self, host, port, username = None):
         """ Connect to server, given IP, port and username (optional).
         """
 
+        self.host = host
+        self.port = port
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.sock.settimeout(2)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        self.sock.settimeout(1)
         
          
         # Connect to remote host
         try:
-            self.sock.connect((host, port))
+            self.sock.connect((self.host, self.port))
         except:
             # Unable to connect
             return False
@@ -40,6 +47,16 @@ class ClientBackend():
         """
         if not self.disconnect_flag:
             self.sock.send(message)
+
+    def disconnectServer(self):
+        """ Close socket and disconect.
+        """
+
+        # Close socket by connecting to it, triggering shutdown procedure
+        self.disconnect_flag = True
+        self.sock.send("\\exit")
+        self.sock.shutdown(socket.SHUT_RDWR)
+        self.sock.close()
 
     def startListen(self):
         """ Run the startListenThread in another thread.
@@ -64,6 +81,8 @@ class ClientBackend():
             read_sockets, write_sockets, error_sockets = select.select(socket_list , [], [])
              
             for temp_sock in read_sockets:
+                if self.disconnect_flag:
+                    break
                 # Incoming message from remote server
                 if temp_sock == self.sock:
                     try:

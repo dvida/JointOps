@@ -116,6 +116,11 @@ def broadcast_data (sock, message):
         
 
         try :
+            # Echo message back to sender
+            if sock != socket:
+                sock.send(message)
+                
+            # Send PM to reciever
             socket.send(message) 
         except :
             # broken socket connection may be, chat client pressed ctrl+c for example

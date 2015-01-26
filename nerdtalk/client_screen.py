@@ -139,7 +139,7 @@ class Screen():
             self.addLine("You are not connected no any server!\n")
             return 0
 
-        self.client_net.disconnect_flag = True
+        self.client_net.disconnectServer()
         self.connected_flag = False
         self.addLine("Disconnected!")
         self.updateHeader("NerdTalk")
@@ -216,6 +216,9 @@ class Screen():
     def addLine(self, message):
         """ Adds a new line to the list of messages on the screen. 
         """
+
+        # Remove extra newlines from both ends
+        message = message.strip('\n')
 
         if '\n' in message:
             message = message.split('\n')
