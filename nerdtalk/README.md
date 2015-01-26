@@ -6,6 +6,10 @@ Written as an assignment for a system programming course.
 
 Very early development phase.
 
+Tested on:
+- Ubuntu 14.04
+- Windows 7 SP1
+
 Dependencies:
 - curses
 
